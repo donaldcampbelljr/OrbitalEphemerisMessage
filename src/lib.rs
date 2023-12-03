@@ -6,12 +6,14 @@ use std::io::copy;
 use std::process::{ExitCode, Termination};
 use tempfile::Builder;
 
+pub const ISS_OEM_URL: &str = "https://nasa-public-data.s3.amazonaws.com/iss-coords/current/ISS_OEM/ISS.OEM_J2K_EPH.txt";
+
 #[derive(Debug,Default)]
 pub struct Satellite {
     name: String,
     id: String,
-    trajectory_summary: String,
-    meta_summary: String,
+    pub trajectory_summary: String,
+    pub meta_summary: String,
 }
 
 impl Satellite {
@@ -69,6 +71,7 @@ pub fn construct_oem(content: &String) -> Satellite {
     let mut previous_token = "nothing";
 
     let mut meta_body_vec: Vec<&str>= Vec::new();
+    let mut traj_body_vec: Vec<&str>= Vec::new();
 
     for line in content.lines().take(50) {
         let tokens: Vec<&str> = line.split_whitespace().collect();
@@ -121,7 +124,7 @@ pub fn construct_oem(content: &String) -> Satellite {
 
         match previous_token {
             "TRAJECTORY" => {
-                println!("Processing trajectory data");
+                traj_body_vec.push(line);
             },
             "META_START" => {
                 meta_body_vec.push(line);
@@ -148,9 +151,16 @@ pub fn construct_oem(content: &String) -> Satellite {
         sat.meta_summary.push_str("\n");
     }
 
+    sat.trajectory_summary = String::new();
+    for line in traj_body_vec.iter() {
+        sat.trajectory_summary.push_str(line);
+        sat.trajectory_summary.push_str("\n");
+    }
+
+
     // sat.meta_summary = meta_body;
 
-    println!("{}", sat.meta_summary);
+    //println!("{}", sat.meta_summary);
 
     sat
 

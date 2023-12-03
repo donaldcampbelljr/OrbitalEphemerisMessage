@@ -3,6 +3,16 @@
 version = 3
 
 [[package]]
+name = "OrbitalEphemerisMessage"
+version = "0.1.0"
+dependencies = [
+ "error-chain",
+ "reqwest",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "addr2line"
 version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -621,16 +631,6 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "winreg",
-]
-
-[[package]]
-name = "rs_OrbitalEphemerisMessages"
-version = "0.1.0"
-dependencies = [
- "error-chain",
- "reqwest",
- "tempfile",
- "tokio",
 ]
 
 [[package]]

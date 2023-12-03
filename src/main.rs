@@ -1,17 +1,12 @@
 use error_chain::error_chain;
 use reqwest;
+use OrbitalEphemerisMessage::{construct_oem, download_file, ISS_OEM_URL,Satellite, Error};
 
-
-use rs_OrbitalEphemerisMessages::{construct_oem, download_file, Satellite, Error};
-
-const ISS_OEM_URL: &str = "https://nasa-public-data.s3.amazonaws.com/iss-coords/current/ISS_OEM/ISS.OEM_J2K_EPH.txt";
-
-
-fn main() -> Result<Satellite, rs_OrbitalEphemerisMessages::Error> {
+fn main() -> Result<Satellite, OrbitalEphemerisMessage::Error> {
 
     let url = ISS_OEM_URL;
 
-    let content: Result<String, rs_OrbitalEphemerisMessages::Error> = download_file(url);
+    let content: Result<String, OrbitalEphemerisMessage::Error> = download_file(url);
 
     let sat = match content {
         Ok(content) => construct_oem(&content),
