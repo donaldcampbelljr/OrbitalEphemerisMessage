@@ -39,10 +39,30 @@ error_chain! {
 
 const ISS_OEM_URL: &str = "https://nasa-public-data.s3.amazonaws.com/iss-coords/current/ISS_OEM/ISS.OEM_J2K_EPH.txt";
 
+
+fn main() -> Result<Satellite> {
+
+    let url = ISS_OEM_URL;
+
+    let content: Result<String> = download_file(url);
+
+    let sat = match content {
+        Ok(content) => construct_oem(&content),
+        Err(error) => {
+            println!("Error downloading content: {}", error);
+            // Return a default Satellite value if there was an error
+            Satellite::default()
+        }
+    };
+
+    Ok(sat)
+
+}
+
 #[tokio::main]
-async fn main() -> Result<Satellite> {
+async fn download_file(url: &str) -> Result<String> {
     let tmp_dir = Builder::new().prefix("example").tempdir()?;
-    let target = ISS_OEM_URL;
+    let target = url;
     let response = reqwest::get(target).await?;
 
     let mut dest = {
@@ -60,27 +80,16 @@ async fn main() -> Result<Satellite> {
     };
 
     let content =  response.text().await?;
-
     copy(&mut content.as_bytes(), &mut dest)?;
 
-    //println!("{}", content);
-    let sat = construct_oem(&content);
 
-    Ok((sat))
+    Ok(content)
 
 }
 
 fn construct_oem(content: &String) -> Satellite {
 
     let mut sat = Satellite::new();
-
-    // META_START
-    // META_END
-    // COMMENT Source
-    //  TRAJECTORY
-    // COMMENT End sequence of events
-    // 2022-02-18T12:00:00.000 6432.338357027310 1810.414013580070 1210.742166479110 -0.28169387337306 4.94773870038605 -5.85002385833392
-    // 2022-02-18T12:04:00.000 6130.995481102160 2917.381297198860 -220.384941250909 -2.21387475002967 4.22061672892853 -6.00280929188885
 
     let mut previous_token = "nothing";
 
