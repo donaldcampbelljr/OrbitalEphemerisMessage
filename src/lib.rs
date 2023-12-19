@@ -1,9 +1,15 @@
 use std::fs::File;
+use std::path::{PathBuf, Path};
 use reqwest;
 use std::io::prelude::*;
 use error_chain::error_chain;
 use std::io::copy;
 use std::process::{ExitCode, Termination};
+use chrono::{DateTime, FixedOffset, NaiveDateTime, TimeZone};
+use polars::df;
+use polars::error::PolarsResult;
+use polars::frame::DataFrame;
+use polars::prelude::NamedFrom;
 use tempfile::Builder;
 
 pub const ISS_OEM_URL: &str = "https://nasa-public-data.s3.amazonaws.com/iss-coords/current/ISS_OEM/ISS.OEM_J2K_EPH.txt";
@@ -14,6 +20,7 @@ pub struct Satellite {
     id: String,
     pub trajectory_summary: String,
     pub meta_summary: String,
+    pub coordinates: DataFrame,
 }
 
 impl Satellite {
@@ -39,6 +46,10 @@ error_chain! {
 #[tokio::main]
 pub async fn download_file(url: &str) -> Result<String> {
     let tmp_dir = Builder::new().prefix("example").tempdir()?;
+
+        //let path_to_crate= env!("CARGO_MANIFEST_DIR");
+        //let download_path = PathBuf::from(path_to_crate).join(Path::new("./src/download_data/"));
+
     let target = url;
     let response = reqwest::get(target).await?;
 
@@ -50,9 +61,9 @@ pub async fn download_file(url: &str) -> Result<String> {
             .and_then(|name| if name.is_empty() { None } else { Some(name) })
             .unwrap_or("tmp.bin");
 
-        println!("file to download: '{}'", fname);
         let fname = tmp_dir.path().join(fname);
-        println!("will be located under: '{:?}'", fname);
+        //let fname = download_path.as_path().join(fname);
+        //println!("will be located under: '{:?}'", fname);
         File::create(fname)?
     };
 
@@ -70,10 +81,19 @@ pub fn construct_oem(content: &String) -> Satellite {
 
     let mut previous_token = "nothing";
 
-    let mut meta_body_vec: Vec<&str>= Vec::new();
-    let mut traj_body_vec: Vec<&str>= Vec::new();
+    let mut meta_body_vec: Vec<String>= Vec::new();
+    let mut traj_body_vec: Vec<String>= Vec::new();
+    let mut count = 1;
 
-    for line in content.lines().take(50) {
+    let mut count_vec: Vec<i32> = Vec::new();
+    let mut date_time_vec: Vec<DateTime<FixedOffset>> = Vec::new();
+    let mut x_coord_vec: Vec<f64> = Vec::new();
+    let mut y_coord_vec: Vec<f64> = Vec::new();
+    let mut z_coord_vec: Vec<f64> = Vec::new();
+
+    let gmt_offset = FixedOffset::west_opt(0).unwrap();
+
+    for line in content.lines().take(60) {
         let tokens: Vec<&str> = line.split_whitespace().collect();
 
         let search_meta_start = "META_START";
@@ -82,6 +102,7 @@ pub fn construct_oem(content: &String) -> Satellite {
         let search_comment_source = "Source";
         let search_comment_trajectory = "TRAJECTORY";
         let search_comment_end = "End";
+        let coordinates_start = "Coordinates Start";
 
         if tokens.get(0).unwrap_or(&"").contains(search_meta_start) {
             //println!("Line contains '{}' at the beginning: {}", search_meta_start, line);
@@ -120,29 +141,69 @@ pub fn construct_oem(content: &String) -> Satellite {
             previous_token = breaking;
         }
 
-        //println!("------>^^^^^^^^^^{}",previous_token);
 
         match previous_token {
             "TRAJECTORY" => {
-                traj_body_vec.push(line);
+                //let joined_line: Vec<&str> = line.split_whitespace().collect();
+                let mut joined_str: String = String::from(line);
+                let joined_str= joined_str.replace("COMMENT", "");
+                traj_body_vec.push(joined_str);
             },
             "META_START" => {
-                meta_body_vec.push(line);
+                let mut joined_str: String = String::from(line);
+                let joined_str= joined_str.replace("COMMENT", "");
+                meta_body_vec.push(joined_str);
             },
             "META_END" => {
-                meta_body_vec.push(line);
+                let mut joined_str: String = String::from(line);
+                let joined_str= joined_str.replace("COMMENT", "");
+                meta_body_vec.push(joined_str);
             },
             "End" => {
-                println!("Comments End");
+                // If previous comment is End, then the future vector information begins.
+                previous_token = coordinates_start;
             },
-            "2022-02-18T12:00:00.000" => {
-                println!("Found beginning of");
+            "Coordinates Start" => {
+
+                let time_stamp = tokens.get(0).unwrap().clone();
+
+                let datetime = NaiveDateTime::parse_from_str(time_stamp, "%Y-%m-%dT%H:%M:%S.%3f").unwrap();
+                let gmt_datetime = gmt_offset.from_local_datetime(&datetime).unwrap();
+
+                let x_coord_str = tokens.get(1).unwrap();
+                let x_coord = x_coord_str.parse::<f64>().unwrap_or_else(|_| panic!("Failed to parse string as f64"));
+
+                let y_coord_str = tokens.get(2).unwrap();
+                let y_coord = y_coord_str.parse::<f64>().unwrap_or_else(|_| panic!("Failed to parse string as f64"));
+
+                let z_coord_str = tokens.get(3).unwrap();
+                let z_coord = z_coord_str.parse::<f64>().unwrap_or_else(|_| panic!("Failed to parse string as f64"));
+
+                count_vec.push(count);
+                date_time_vec.push(gmt_datetime);
+                x_coord_vec.push(x_coord);
+                y_coord_vec.push(y_coord);
+                z_coord_vec.push(z_coord);
+
+                count += 1;
+
+
             },
+
             _ => { } ,
         }
 
 
     }
+
+    let coord_df: PolarsResult<DataFrame> = df!(
+        "counts"=> &count_vec,
+        "x coordinates"=> &x_coord_vec,
+        "y coordinates"=> &y_coord_vec,
+        "z coordinates"=> &z_coord_vec,
+    );
+
+    sat.coordinates = coord_df.unwrap();
 
 
     sat.meta_summary = String::new();
@@ -158,9 +219,10 @@ pub fn construct_oem(content: &String) -> Satellite {
     }
 
 
-    // sat.meta_summary = meta_body;
+    // println!("{}", sat.meta_summary);
+    // println!("{}", sat.trajectory_summary);
+    // println!("\n{}", sat.coordinates);
 
-    //println!("{}", sat.meta_summary);
 
     sat
 
