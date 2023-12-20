@@ -20,7 +20,10 @@ pub struct Satellite {
     id: String,
     pub trajectory_summary: String,
     pub meta_summary: String,
-    pub coordinates: DataFrame,
+    //pub coordinates: DataFrame,
+    pub x_coord_vec: Vec<f64>,
+    pub y_coord_vec: Vec<f64>,
+    pub z_coord_vec: Vec<f64>,
 }
 
 impl Satellite {
@@ -196,14 +199,20 @@ pub fn construct_oem(content: &String) -> Satellite {
 
     }
 
-    let coord_df: PolarsResult<DataFrame> = df!(
-        "counts"=> &count_vec,
-        "x coordinates"=> &x_coord_vec,
-        "y coordinates"=> &y_coord_vec,
-        "z coordinates"=> &z_coord_vec,
-    );
+    // let coord_df: PolarsResult<DataFrame> = df!(
+    //     "counts"=> &count_vec,
+    //     "x coordinates"=> &x_coord_vec,
+    //     "y coordinates"=> &y_coord_vec,
+    //     "z coordinates"=> &z_coord_vec,
+    // );
+    //
+    // sat.coordinates = coord_df.unwrap();
 
-    sat.coordinates = coord_df.unwrap();
+    // Cannot seem to get coordinates as Vec<64> out of dataframe downstream
+    // Temporary workaround
+    sat.x_coord_vec = x_coord_vec;
+    sat.y_coord_vec = y_coord_vec;
+    sat.z_coord_vec = z_coord_vec;
 
 
     sat.meta_summary = String::new();
