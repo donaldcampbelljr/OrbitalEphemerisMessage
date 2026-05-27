@@ -1,4 +1,8 @@
-### Read Specific OEM Messages using Rust
+
+### Update: Archived May 2026
+This code was pulled into its parent project: [rsISS](https://github.com/donaldcampbelljr/rsISS)
+
+## Read Specific OEM Messages using Rust
 
 
 Note: This is simply for tracking future trajectories of the ISS as part of this project: [rsISSTracker](https://github.com/donaldcampbelljr/rsISS)
